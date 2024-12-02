@@ -1,0 +1,525 @@
+---
+title: "Final Project Part 1"
+output: pdf_document
+---
+
+Load the data:
+```{r}
+wine_data <- read.csv("combined_wine_data.csv")
+nrow(wine_data)
+str(wine_data)
+```
+
+Split the data:
+```{r}
+s <- sample(1:nrow(wine_data), 3240, replace=F)
+train <- wine_data[s,]
+test <- wine_data[-s,]
+```
+
+Numerical Summary of the Wine Data:
+```{r}
+# Quantitative variables summary
+numeric_vars <- sapply(train, is.numeric)
+
+numeric_summary <- data.frame(
+  mean = sapply(train[, numeric_vars], mean, na.rm = TRUE),
+  median = sapply(train[, numeric_vars], median, na.rm = TRUE),
+  sd = sapply(train[, numeric_vars], sd, na.rm = TRUE),
+  min = sapply(train[, numeric_vars], min, na.rm = TRUE),
+  max = sapply(train[, numeric_vars], max, na.rm = TRUE)
+)
+
+print(numeric_summary)
+```
+```{r}
+# Qualitative variables summary
+wine_type_table <- table(train$wine_type)
+wine_type_summary <- data.frame(
+  wine_type = as.integer(names(wine_type_table)),
+  count = as.integer(wine_type_table),
+  proportion = as.numeric(wine_type_table) / nrow(train)
+)
+
+print(wine_type_summary)
+```
+
+Automated Model Selection:
+```{r}
+library(MASS)
+str(train)
+```
+
+Forward AIC:
+```{r}
+stepAIC(lm(quality ~ 1, data=train), 
+        scope=list(upper=lm(quality ~ residual.sugar + total.sulfur.dioxide + pH + alcohol + wine_type, data = train)), 
+        direction = "forward", k=2)
+```
+
+Backward AIC:
+```{r}
+stepAIC(lm(quality ~ residual.sugar + total.sulfur.dioxide + pH + alcohol + wine_type, data = train), 
+        scope=list(lower=lm(quality ~ 1, data=train)), 
+        direction = "backward", k=2)
+```
+
+Stepwise AIC:
+```{r}
+stepAIC(lm(quality ~ residual.sugar + total.sulfur.dioxide + pH + alcohol + wine_type, data = train), 
+        direction = "both", k=2)
+```
+
+Forward BIC:
+```{r}
+n <- nrow(train)
+stepAIC(lm(quality ~ 1, data=train), 
+        scope=list(upper=lm(quality ~ residual.sugar + total.sulfur.dioxide + pH + alcohol + wine_type, data = train)), 
+        direction = "forward", k=log(n))
+```
+
+Backward BIC:
+```{r}
+n <- nrow(train)
+stepAIC(lm(quality ~ residual.sugar + total.sulfur.dioxide + pH + alcohol + wine_type, data = train), 
+        scope=list(lower=lm(quality ~ 1, data=train)), 
+        direction = "backward", k=log(n))
+```
+
+Stepwise BIC:
+```{r}
+n <- nrow(train)
+stepAIC(lm(quality ~ residual.sugar + total.sulfur.dioxide + pH + alcohol + wine_type, data = train), 
+        direction = "both", k=log(n))
+```
+
+
+Fit the model to the wine data:
+```{r}
+model <- lm(quality ~ residual.sugar + total.sulfur.dioxide + pH + alcohol 
+            + wine_type, data = train)
+summary(model)
+```
+
+Extract the fitted/predicted values ($\hat{y}_{i}$):
+```{r}
+y_hat <- fitted(model)
+```
+
+Checking condition 1: conditional mean response
+Response versus Fitted Values:
+```{r}
+plot(x = y_hat, y = train$quality, main="Quality vs Fitted", xlab="Fitted", 
+     ylab="Quality")
+abline(a = 0, b = 1, lty=2)
+```
+
+Checking condition 2: conditional mean predictors
+Pairwise Scatterplots:
+```{r}
+pairs(train[, c(4, 7, 9, 11, 13)])
+```
+
+Extract the residuals from the model ($\hat{e}_{i}$):
+```{r}
+e_hat <- resid(model)
+```
+
+Checking Normality
+Normal Q-Q Plot:
+```{r}
+qqnorm(e_hat)
+qqline(e_hat)
+```
+
+Stark deviation spotted, apply box-cox transformation
+Install libraries:
+```{r, eval=FALSE}
+packageurl <- "https://cran.r-project.org/src/contrib/Archive/pbkrtest/pbkrtest_0.4-4.tar.gz" 
+install.packages(packageurl, repos=NULL, type="source")
+install.packages("car", dependencies=TRUE)
+library(car)
+```
+
+Check transformation:
+```{r}
+p <- powerTransform(cbind(train[, c(4, 7, 9, 11, 12)]))
+summary(p)
+```
+Residual sugar, choose log transformation
+Total sulfer dioxide, close to 1, no transformation
+PH, choose inverse transformation
+alcohol, choose reciprocal square transformation
+quality, close to 1, no transformation
+
+Apply transformation:
+```{r}
+# Transform the variables using the Box-Cox power transformation
+train$transformed_residual_sugar <- log(train$residual.sugar)
+train$transformed_pH <- 1 / train$pH
+train$transformed_alcohol <- 1 / (train$alcohol^2)
+
+# Update the model with the transformed variables
+model_transformed <- lm(quality ~ transformed_residual_sugar + total.sulfur.dioxide + transformed_pH + transformed_alcohol + wine_type, data = train)
+
+# Output the summary of the model
+summary(model_transformed)
+```
+
+Check conditions and assumption again:
+Extract the fitted/predicted values ($\hat{y}_{i}$):
+```{r}
+y_hat <- fitted(model_transformed)
+```
+
+Extract the residuals from the transformed model ($\hat{e}_{i}$):
+```{r}
+e_hat <- resid(model_transformed)
+```
+
+Checking condition 1: conditional mean response
+Response versus Fitted Values:
+```{r}
+plot(x = y_hat, y = train$quality, main="Quality vs Fitted", xlab="Fitted", 
+     ylab="Quality")
+abline(a = 0, b = 1, lty=2)
+```
+
+Checking condition 2: conditional mean predictors
+Pairwise Scatterplots:
+```{r}
+pairs(train[, c(4, 7, 9, 11, 13)])
+```
+
+Checking Normality
+Normal Q-Q Plot:
+```{r}
+qqnorm(e_hat)
+qqline(e_hat)
+```
+没啥区别 好像还更烂了
+
+Checking Linearity, constant variance, and corelated error 
+Residuals vs Fitted:
+```{r}
+plot(e_hat ~ y_hat, main="Residuals vs Fitted", ylab="Residual")
+```
+
+Residuals vs Residual Sugar:
+```{r}
+plot(e_hat ~ train$transformed_residual_sugar, 
+     main="Residuals vs Residual Sugar", 
+     xlab="Residual Sugar", ylab="Residual")
+```
+This plot shows corrected error
+没有代码改
+
+Residuals vs Total Sulfur Dioxide:
+```{r}
+plot(e_hat ~ train$total.sulfur.dioxide, 
+     main="Residuals vs Total Sulfur Dioxide", 
+     xlab="Total Sulfur Dioxide", ylab="Residual")
+```
+
+Residuals vs PH:
+```{r}
+plot(e_hat ~ train$transformed_pH, main="Residuals vs PH", xlab="PH", ylab="Residual")
+```
+
+Residuals vs Alcohol:
+```{r}
+plot(e_hat ~ train$transformed_alcohol, 
+     main="Residuals vs Alcohol", 
+     xlab="Alcohol", ylab="Residual")
+```
+
+Residuals by Wine Type:
+```{r}
+boxplot(e_hat ~ train$wine_type, main="Residual by Wine Type", 
+        xlab="Wine Type", ylab="Residual", names=c("White", "Red"))
+```
+
+No signs of violation of linearity and correlated error
+
+Checking Multicollinearity:
+```{r}
+vif(model_transformed)
+```
+No signs of Multicollinearity
+
+Checking predictors:
+```{r}
+summary(model_transformed)
+```
+the p-value for F-statistic is much less than 0.05, indicating there is at least one of the predictor useful in predicting wine quality
+
+Predictor PH does not reject the null hypothesis, thus this might not indicate a linear relationship
+
+Construct a reduced model:
+```{r}
+model_reduced <- lm(quality ~ transformed_residual_sugar + total.sulfur.dioxide + transformed_alcohol + wine_type, data = train)
+summary(model_reduced)
+```
+
+Check conditions and assumption again:
+Extract the fitted/predicted values ($\hat{y}_{i}$):
+```{r}
+y_hat <- fitted(model_reduced)
+```
+
+Extract the residuals from the transformed model ($\hat{e}_{i}$):
+```{r}
+e_hat <- resid(model_reduced)
+```
+
+Checking condition 1: conditional mean response
+Response versus Fitted Values:
+```{r}
+plot(x = y_hat, y = train$quality, main="Quality vs Fitted", xlab="Fitted", 
+     ylab="Quality")
+abline(a = 0, b = 1, lty=2)
+```
+
+Checking condition 2: conditional mean predictors
+Pairwise Scatterplots:
+```{r}
+pairs(train[, c(4, 7, 11, 13)])
+```
+
+Checking Normality
+Normal Q-Q Plot:
+```{r}
+qqnorm(e_hat)
+qqline(e_hat)
+```
+没啥区别
+
+Checking Linearity, constant variance, and corelated error 
+Residuals vs Fitted:
+```{r}
+plot(e_hat ~ y_hat, main="Residuals vs Fitted", ylab="Residual")
+```
+
+Residuals vs Residual Sugar:
+```{r}
+plot(e_hat ~ train$transformed_residual_sugar, main="Residuals vs Residual Sugar", 
+     xlab="Residual Sugar", ylab="Residual")
+```
+This plot shows correlated error
+没有代码修这个
+
+Residuals vs Total Sulfur Dioxide:
+```{r}
+plot(e_hat ~ train$total.sulfur.dioxide, 
+     main="Residuals vs Total Sulfur Dioxide", 
+     xlab="Total Sulfur Dioxide", ylab="Residual")
+```
+
+Residuals vs Alcohol:
+```{r}
+plot(e_hat ~ train$transformed_alcohol, main="Residuals vs Alcohol", xlab="Alcohol", 
+     ylab="Residual")
+```
+
+Residuals by Wine Type:
+```{r}
+boxplot(e_hat ~ train$wine_type, main="Residual by Wine Type", 
+        xlab="Wine Type", ylab="Residual", names=c("White", "Red"))
+```
+
+Conducte a partial F test:
+```{r}
+anova(model_reduced, model_transformed)
+```
+We fail to reject the null hypothesis and conclude that the predictors we removed from the full model were all not significantly linearly related to the response
+
+Checking Multicollinearity:
+```{r}
+vif(model_reduced)
+```
+No signs of Multicollinearity
+
+
+Checking problematic points
+```{r}
+par(mfrow=c(2,2))
+for(i in c(4, 7, 11)) {
+  boxplot(train[,i], main=paste0("Boxplot of ", names(train)[i]), xlab = names(train)[i], horizontal=T)
+}
+```
+We notice that Quality, our response, is skewed with many statistical outliers. This will likely cause
+issues with our Normality assumption or even our Linearity assumption, leading to possibly inaccurate
+p-values and sampling distributions. We also notice some statistical outliers in all predictor distributions
+except for Sandsaves. Statistical outliers can cause variances to appear larger, so we may experience issues
+with accurately estimating standard errors(Worksheet里的格式 你们看着改)
+
+Define the cutoffs:
+```{r}
+# useful values:
+n <- nrow(train)
+p <- length(coef(model_reduced)) - 1
+
+# leverage cutoff
+h_cut <- 2*(p+1)/n
+
+# cooks cutoff
+D_cut <- qf(0.5, p+1, n-p-1)
+
+# DFFITS cutoff
+fits_cut <- 2*sqrt((p+1)/n)
+
+# DFBETAS cutoff
+beta_cut <- 2/sqrt(n)
+```
+
+Compute measures:
+```{r}
+# leverage
+h_ii <- hatvalues(model_reduced)
+
+# outlier
+r_i <- rstandard(model_reduced)
+
+# Cook's Distance
+D_i <- cooks.distance(model_reduced)
+
+# DFFITS
+dffits_i <- dffits(model_reduced)
+
+# DFBETAS
+dfbetas_i <- dfbetas(model_reduced)
+```
+
+Identify problematic points:
+```{r}
+# Leverage points
+print("Leverage points:")
+which(h_ii > h_cut)
+
+# Outlier points
+print("Outlier points:")
+which(r_i > 4 | r_i < -4)
+
+# Influential on all fitted values
+print("Influential on all fitted values:")
+which(D_i > D_cut)
+
+# Influential on own fitted values
+print("Influential on own fitted values:")
+which(abs(dffits_i) > fits_cut)
+
+# Influential on a coefficient
+print("Influential on a coefficient:")
+for(i in 1: 5){
+  print(paste0("Beta ", i-1))
+  print(which(abs(dfbetas_i) > beta_cut))
+}
+```
+
+Validation:
+```{r}
+summary(model_reduced)
+```
+
+```{r}
+test$transformed_residual_sugar <- log(test$residual.sugar)
+test$transformed_alcohol <- 1 / (test$alcohol^2)
+
+final_test <- lm(quality ~ transformed_residual_sugar + total.sulfur.dioxide + transformed_alcohol + wine_type, data = test)
+summary(final_test)
+
+```
+
+Check conditions and assumption for test model:
+Extract the fitted/predicted values ($\hat{y}_{i}$):
+```{r}
+y_hat <- fitted(final_test)
+```
+
+Extract the residuals from the transformed model ($\hat{e}_{i}$):
+```{r}
+e_hat <- resid(final_test)
+```
+
+Checking condition 1: conditional mean response
+Response versus Fitted Values:
+```{r}
+plot(x = y_hat, y = test$quality, main="Quality vs Fitted", xlab="Fitted", 
+     ylab="Quality")
+abline(a = 0, b = 1, lty=2)
+```
+
+Checking condition 2: conditional mean predictors
+Pairwise Scatterplots:
+```{r}
+pairs(test[, c(4, 7, 11, 13)])
+```
+
+Checking Normality
+Normal Q-Q Plot:
+```{r}
+qqnorm(e_hat)
+qqline(e_hat)
+```
+没啥区别
+
+Checking Linearity, constant variance, and corelated error 
+Residuals vs Fitted:
+```{r}
+plot(e_hat ~ y_hat, main="Residuals vs Fitted", ylab="Residual")
+```
+
+Residuals vs Residual Sugar:
+```{r}
+plot(e_hat ~ test$transformed_residual_sugar, main="Residuals vs Residual Sugar", 
+     xlab="Residual Sugar", ylab="Residual")
+```
+This plot shows correlated error
+没有代码修这个
+
+Residuals vs Total Sulfur Dioxide:
+```{r}
+plot(e_hat ~ test$total.sulfur.dioxide, 
+     main="Residuals vs Total Sulfur Dioxide", 
+     xlab="Total Sulfur Dioxide", ylab="Residual")
+```
+
+Residuals vs Alcohol:
+```{r}
+plot(e_hat ~ test$transformed_alcohol, main="Residuals vs Alcohol", xlab="Alcohol", 
+     ylab="Residual")
+```
+
+Residuals by Wine Type:
+```{r}
+boxplot(e_hat ~ test$wine_type, main="Residual by Wine Type", 
+        xlab="Wine Type", ylab="Residual", names=c("White", "Red"))
+```
+
+Checking Multicollinearity:
+```{r}
+vif(final_test)
+```
+No signs of Multicollinearity
+
+
+Checking problematic points
+```{r}
+par(mfrow=c(2,2))
+for(i in c(4, 7, 11)) {
+  boxplot(test[,i], main=paste0("Boxplot of ", names(train)[i]), xlab = names(train)[i], horizontal=T)
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
