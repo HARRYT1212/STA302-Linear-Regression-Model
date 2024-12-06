@@ -197,7 +197,6 @@ Normal Q-Q Plot:
 qqnorm(e_hat)
 qqline(e_hat)
 ```
-没啥区别 好像还更烂了
 
 Checking Linearity, constant variance, and corelated error 
 Residuals vs Fitted:
@@ -212,7 +211,7 @@ plot(e_hat ~ train$transformed_residual_sugar,
      xlab="Residual Sugar", ylab="Residual")
 ```
 This plot shows corrected error
-没有代码改
+
 
 Residuals vs Total Sulfur Dioxide:
 ```{r}
@@ -292,7 +291,6 @@ Normal Q-Q Plot:
 qqnorm(e_hat)
 qqline(e_hat)
 ```
-没啥区别
 
 Checking Linearity, constant variance, and corelated error 
 Residuals vs Fitted:
@@ -306,7 +304,6 @@ plot(e_hat ~ train$transformed_residual_sugar, main="Residuals vs Residual Sugar
      xlab="Residual Sugar", ylab="Residual")
 ```
 This plot shows correlated error
-没有代码修这个
 
 Residuals vs Total Sulfur Dioxide:
 ```{r}
@@ -351,7 +348,7 @@ We notice that Quality, our response, is skewed with many statistical outliers. 
 issues with our Normality assumption or even our Linearity assumption, leading to possibly inaccurate
 p-values and sampling distributions. We also notice some statistical outliers in all predictor distributions
 except for Sandsaves. Statistical outliers can cause variances to appear larger, so we may experience issues
-with accurately estimating standard errors(Worksheet里的格式 你们看着改)
+with accurately estimating standard errors
 
 Define the cutoffs:
 ```{r}
@@ -461,7 +458,6 @@ Normal Q-Q Plot:
 qqnorm(e_hat)
 qqline(e_hat)
 ```
-没啥区别
 
 Checking Linearity, constant variance, and corelated error 
 Residuals vs Fitted:
@@ -475,7 +471,6 @@ plot(e_hat ~ test$transformed_residual_sugar, main="Residuals vs Residual Sugar"
      xlab="Residual Sugar", ylab="Residual")
 ```
 This plot shows correlated error
-没有代码修这个
 
 Residuals vs Total Sulfur Dioxide:
 ```{r}
